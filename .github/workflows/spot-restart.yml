@@ -1,0 +1,58 @@
+
+name: Azure Spot VM Auto-Restart
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-spot-keepalive
+  cancel-in-progress: false
+
+jobs:
+  restart-vm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Check and start Spot VM
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RG="COOLIFYRG"
+          VM="CoolifyVM"
+
+          STATE=$(az vm get-instance-view \
+            --resource-group "$RG" \
+            --name "$VM" \
+            --query "instanceView.statuses[?starts_with(code, 'PowerState/')].code | [0]" \
+            --output tsv)
+
+          echo "VM state: $STATE"
+
+          case "$STATE" in
+            PowerState/running)
+              echo "VM is already running."
+              ;;
+            PowerState/deallocated|PowerState/stopped)
+              echo "VM is stopped. Requesting restart..."
+              az vm start \
+                --resource-group "$RG" \
+                --name "$VM" \
+                --no-wait
+              echo "Start request submitted."
+              ;;
+            *)
+              echo "VM is in state '$STATE'. No action taken."
+              ;;
+          esac
