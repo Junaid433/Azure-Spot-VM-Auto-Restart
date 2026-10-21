@@ -3,7 +3,7 @@ name: Azure Spot VM Auto-Restart
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
